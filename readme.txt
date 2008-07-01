@@ -22,10 +22,11 @@ You can allow just a selected group on your site. AccessQontrol is the plugin to
 
 == Installation ==
 
-= Quick start =
-
-Unzip the file and upload it to your /wp-content/plugins/ folder.
+Unzip the file and upload it to your /wp-content/plugins/ folder.<br />
 Activate from the plugins page and allow access via the options panel.
+
+[More instructions](http://meandmymac.net/contact-and-support/accessqontrol/#install)
+
 
 == Frequently Asked Questions ==
 
@@ -35,4 +36,7 @@ Visit here for the FAQ and support:
 == Screenshots ==
 
 1. The front page when someone is blocked
-2. The options panel to edit the frontpage and allow certain users or make the blog private all-together 
+2. The options panel to edit the frontpage and allow certain users or make the blog private all-together
+
+[More screenshots](http://meandmymac.net/contact-and-support/accessqontrol/#screens)
+ 
