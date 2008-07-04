@@ -4,7 +4,7 @@ Plugin Name: AccessQontrol
 Plugin URI: http://meandmymac.net/
 Description: To make your site private, or not...
 Author: Arnan de Gans
-Version: 0.2
+Version: 0.3
 Author URI: http://meandmymac.net/plugins/accessqontrol/
 */
 
@@ -33,7 +33,7 @@ $aqontrol_template 	= get_option('aqontrol_template');
  Return:    -none-
 -------------------------------------------------------------*/
 function aqontrol_menu_pages() {
-	add_options_page('AccessQontrol', 'AccessQontrol', 'manage_options', basename(__FILE__), 'aqontrol_options_page');
+	add_submenu_page('options-general.php', 'AccessQontrol', 'AccessQontrol', 'manage_options', 'accessqontrol', 'aqontrol_options_page');
 }
 
 /*-------------------------------------------------------------
@@ -61,18 +61,18 @@ function aqontrol_options_page() {
 		        <td><select name="aqontrol_enable">';
 			        <option value="yes" <?php if($aqontrol_config['enable'] == "yes") { echo 'selected'; } ?>>Yes</option>
 			        <option value="no" <?php if($aqontrol_config['enable'] == "no") { echo 'selected'; } ?>>No</option>
-				</select></td>
+				</select> <em>This blocks unregistered people only.</em></td>
 			</tr>
 			<tr valign="top">
 				<th scope="row">Block everyone</th>
 		        <td><select name="aqontrol_block_registered">';
 			        <option value="yes" <?php if($aqontrol_config['block_registered'] == "yes") { echo 'selected'; } ?>>Yes</option>
 			        <option value="no" <?php if($aqontrol_config['block_registered'] == "no") { echo 'selected'; } ?>>No</option>
-				</select> <em>The Dashboard remains available at all times!</em></td>
+				</select> <em>This blocks everyone but the users specified below. The Dashboard remains available at all times!</em></td>
 			</tr>
 			<tr valign="top">
-				<th scope="row">Except for these users</th>
-				<td><input name="aqontrol_except" type="text" value="<?php echo $aqontrol_config['except'];?>" size="40" /> <em>Type login names, comma seperated. 'admin' always has access!</em></td>
+				<th scope="row">Always allow these users</th>
+				<td><textarea name="aqontrol_except" type="text" cols="50" rows="4"><?php echo $aqontrol_config['except'];?></textarea><br /><em>Type login names, comma seperated. 'admin' cannot be blocked!</em></td>
 			</tr>
 			</table>
 
@@ -166,6 +166,22 @@ function aqontrol_login_template() {
 <?php
 }
 
+/*-------------------------------------------------------------
+ Name:      array_combine
+
+ Purpose:   array_combine() for PHP4
+ Receive:   $arr1,$arr2
+ Return:    $out
+-------------------------------------------------------------*/
+if (!function_exists('array_combine')) {
+	function array_combine($arr1,$arr2) {
+	   $out = array();
+	   foreach ($arr1 as $key1 => $value1) {
+	    $out[$value1] = $arr2[$key1];
+	   }
+	   return $out;
+	}
+}
 
 /*-------------------------------------------------------------
  Name:      aqontrol_check_config
