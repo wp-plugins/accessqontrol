@@ -4,7 +4,7 @@ Donate link: http://meandmymac.net/donate/
 Tags: access, lock, block, plugin, admin, control, limit
 Requires at least: 2.5
 Tested up to: 2.5.1
-Stable tag: 0.2.1
+Stable tag: 0.2
 
 Make your blog private? Shield your blog from anyone but yourself. 
 
