@@ -4,7 +4,7 @@ Plugin Name: AccessQontrol
 Plugin URI: http://meandmymac.net/
 Description: To make your site private, or not...
 Author: Arnan de Gans
-Version: 0.3
+Version: 1.0
 Author URI: http://meandmymac.net/plugins/accessqontrol/
 */
 
@@ -57,22 +57,16 @@ function aqontrol_options_page() {
 	    	
 	    	<table class="form-table">
 			<tr valign="top">
-				<th scope="row">Make website private</th>
-		        <td><select name="aqontrol_enable">';
-			        <option value="yes" <?php if($aqontrol_config['enable'] == "yes") { echo 'selected'; } ?>>Yes</option>
-			        <option value="no" <?php if($aqontrol_config['enable'] == "no") { echo 'selected'; } ?>>No</option>
-				</select> <em>This blocks unregistered people only.</em></td>
+				<th scope="row">Allow...</th>
+		        <td><select name="aqontrol_allow">';
+			        <option value="everyone" <?php if($aqontrol_config['allow'] == "everyone") { echo 'selected'; } ?>>everyone (default, your site is open)</option>
+			        <option value="registered" <?php if($aqontrol_config['allow'] == "registered") { echo 'selected'; } ?>>registered people only (members only)</option>
+			        <option value="nobody" <?php if($aqontrol_config['allow'] == "nobody") { echo 'selected'; } ?>>nobody (just you are allowed on, maintanance mode)</option>
+				</select> <em>The dashboard stays available at all times!</em></td>
 			</tr>
 			<tr valign="top">
-				<th scope="row">Block everyone</th>
-		        <td><select name="aqontrol_block_registered">';
-			        <option value="yes" <?php if($aqontrol_config['block_registered'] == "yes") { echo 'selected'; } ?>>Yes</option>
-			        <option value="no" <?php if($aqontrol_config['block_registered'] == "no") { echo 'selected'; } ?>>No</option>
-				</select> <em>This blocks everyone but the users specified below. The Dashboard remains available at all times!</em></td>
-			</tr>
-			<tr valign="top">
-				<th scope="row">Always allow these users</th>
-				<td><textarea name="aqontrol_except" type="text" cols="50" rows="4"><?php echo $aqontrol_config['except'];?></textarea><br /><em>Type login names, comma seperated. 'admin' cannot be blocked!</em></td>
+				<th scope="row">Never block these users</th>
+				<td><textarea name="aqontrol_except" type="text" cols="50" rows="4"><?php echo $aqontrol_config['except'];?></textarea><br /><em>Type login names, comma seperated (user1,user2,etc.). 'admin' cannot be blocked and does not need to be excluded!</em></td>
 			</tr>
 			</table>
 
@@ -128,11 +122,10 @@ function aqontrol_options_page() {
 function aqontrol_header() {
 	global $aqontrol_config, $user_ID, $userdata;
 
-	$buffer1 = explode(',', $aqontrol_config['except']);
-	$buffer2 = array(1 => 'admin');
-	$buffer = array_combine($buffer1, $buffer2);
+	$buffer = explode(',', $aqontrol_config['except']);
 	 
-	if($user_ID == '' OR ($aqontrol_config['block_registered'] == 'yes' AND !in_array($userdata->user_login, $buffer))) {
+	if((($user_ID == '' AND $aqontrol_config['allow'] == 'registered') OR $aqontrol_config['allow'] == 'nobody') 
+	AND !in_array($userdata->user_login, $buffer) AND $userdata->user_login != 'admin') {
 		aqontrol_login_template();
 		exit;
 	}
@@ -167,23 +160,6 @@ function aqontrol_login_template() {
 }
 
 /*-------------------------------------------------------------
- Name:      array_combine
-
- Purpose:   array_combine() for PHP4
- Receive:   $arr1,$arr2
- Return:    $out
--------------------------------------------------------------*/
-if (!function_exists('array_combine')) {
-	function array_combine($arr1,$arr2) {
-	   $out = array();
-	   foreach ($arr1 as $key1 => $value1) {
-	    $out[$value1] = $arr2[$key1];
-	   }
-	   return $out;
-	}
-}
-
-/*-------------------------------------------------------------
  Name:      aqontrol_check_config
 
  Purpose:   Create or update the options
@@ -194,18 +170,15 @@ function aqontrol_check_config() {
 	// Configuration
 	if ( !$option = get_option('aqontrol_config') ) {
 		// Default Options
-		$option['enable'] 					= 'yes';
-		$option['block_registered']			= 'no';
+		$option['allow'] 					= 'everyone';
 		$option['except']					= '';
 		update_option('aqontrol_config', $option);
 	}
 
 	// If value not assigned insert default (upgrades)
 	// "except" may be empty!!
-	if (strlen($option['enable']) < 1 
-	or strlen($option['block_registered']) < 1) {
-		$option['enable'] 					= 'yes';
-		$option['block_registered']			= 'no';
+	if (strlen($option['allow']) < 1) {
+		$option['allow'] 					= 'everyone';
 		$option['except']					= ''; // may be left empty!!
 		update_option('aqontrol_config', $option);
 	}
@@ -235,8 +208,7 @@ function aqontrol_check_config() {
 -------------------------------------------------------------*/
 function aqontrol_options_submit() {
 	//options page
-	$option['enable']	 			= $_POST['aqontrol_enable'];
-	$option['block_registered']		= $_POST['aqontrol_block_registered'];
+	$option['allow']	 			= $_POST['aqontrol_allow'];
 	$option['except'] 				= trim($_POST['aqontrol_except'], "\t\n ");
 	$template['title'] 				= htmlspecialchars(trim($_POST['aqontrol_title'], "\t\n "), ENT_QUOTES);
 	$template['content'] 			= htmlspecialchars(trim($_POST['aqontrol_content'], "\t\n "), ENT_QUOTES);
