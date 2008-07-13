@@ -1,11 +1,11 @@
 <?php
 /*
 Plugin Name: AccessQontrol
-Plugin URI: http://meandmymac.net/
+Plugin URI: http://meandmymac.net/plugins/accessqontrol/
 Description: To make your site private, or not...
 Author: Arnan de Gans
 Version: 1.0
-Author URI: http://meandmymac.net/plugins/accessqontrol/
+Author URI: http://meandmymac.net/
 */
 
 #---------------------------------------------------
