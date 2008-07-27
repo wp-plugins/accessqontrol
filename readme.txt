@@ -32,7 +32,7 @@ Activate from the plugins page and administrate via the options panel.
 == Frequently Asked Questions ==
 
 Visit here for the FAQ and support:
-[AccessQontrol support page](http://meandmymac.net/contact-and-support/accessqontrol/)
+[AccessQontrol support page](http://forum.at.meandmymac.net/)
 
 == Screenshots ==
 
