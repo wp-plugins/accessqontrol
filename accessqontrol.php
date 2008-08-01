@@ -4,7 +4,7 @@ Plugin Name: AccessQontrol
 Plugin URI: http://meandmymac.net/plugins/accessqontrol/
 Description: To make your site private, or not...
 Author: Arnan de Gans
-Version: 1.0
+Version: 1.1
 Author URI: http://meandmymac.net/
 */
 
@@ -46,11 +46,17 @@ function aqontrol_menu_pages() {
 function aqontrol_options_page() {
 	$aqontrol_config = get_option('aqontrol_config');
 	$aqontrol_template = get_option('aqontrol_template');
-?>
+	$action = $_POST['aqontrol_action'];
+
+	if ($action == 'update') { ?>
+		<div id="message" class="updated fade"><p>Settings <strong>saved</strong></p></div>
+	<?php } ?>
+
 	<div class="wrap">
 	  	<h2>AccessQontrol options</h2>
-	  	<form method="post" action="<?php echo $_SERVER['REQUEST_URI'];?>">
+	  	<form method="post" action="options-general.php?page=accessqontrol">
 	    	<input type="hidden" name="aqontrol_submit_options" value="true" />
+	    	<input type="hidden" name="aqontrol_action" value="update" />
 			<?php wp_nonce_field('update-options') ?>
 
 	    	<h3>Main config</h3>
@@ -124,8 +130,7 @@ function aqontrol_header() {
 
 	$buffer = explode(',', $aqontrol_config['except']);
 	 
-	if((($user_ID == '' AND $aqontrol_config['allow'] == 'registered') OR $aqontrol_config['allow'] == 'nobody') 
-	AND !in_array($userdata->user_login, $buffer) AND $userdata->user_login != 'admin') {
+	if(($aqontrol_config['allow'] == 'registered' OR $aqontrol_config['allow'] == 'nobody') AND $user_ID == '' AND !in_array($userdata->user_login, $buffer) AND $userdata->user_login != 'admin') {
 		aqontrol_login_template();
 		exit;
 	}
@@ -150,9 +155,7 @@ function aqontrol_login_template() {
 
 	<div id="content" class="widecolumn">
 		<?php print $template_title; ?>
-		<div class="entry">
-			<?php print $template_content; ?>
-		</div>
+		<?php print $template_content; ?>
 	</div>
 	
 	<?php get_footer(); ?>
@@ -187,14 +190,14 @@ function aqontrol_check_config() {
 	if ( !$template = get_option('aqontrol_template') ) {
 		// Default Options
 		$template['title'] 					= '<h2>You need to log in to enter this website</h2>';
-		$template['content'] 				= 'If you wish to log in you need an account. Please contact the system administrator if you do not have an account.';
+		$template['content'] 				= '<div class="entry">If you wish to log in you need an account. Please contact the system administrator if you do not have an account.</div>';
 		update_option('aqontrol_template', $template);
 	}
 
 	// If value not assigned insert default (upgrades)
 	if ( strlen($template['title']) < 1 or strlen($template['content'] ) < 1) {
 		$template['title'] 					= '<h2>You need to log in to enter this website</h2>';
-		$template['content'] 				= 'If you wish to log in you need an account. Please contact the system administrator if you do not have an account.';
+		$template['content'] 				= '<div class="entry">If you wish to log in you need an account. Please contact the system administrator if you do not have an account.</div>';
 		update_option('aqontrol_template', $template);
 	}
 }

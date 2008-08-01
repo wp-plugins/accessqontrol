@@ -4,7 +4,7 @@ Donate link: http://meandmymac.net/donate/
 Tags: access, lock, block, plugin, admin, control, limit, private, maintenance, plugin
 Requires at least: 2.5
 Tested up to: 2.6
-Stable tag: 1.0
+Stable tag: 1.1
 
 Make your blog private? Block everyone or even registered users. Or a selection of them... Need a maintenance mode? Or just want the site to youself..
 
