@@ -4,7 +4,7 @@ Plugin Name: AccessQontrol
 Plugin URI: http://meandmymac.net/plugins/accessqontrol/
 Description: To make your site private, or not...
 Author: Arnan de Gans
-Version: 1.3
+Version: 1.3.1
 Author URI: http://meandmymac.net/
 */
 
@@ -33,7 +33,7 @@ $aqontrol_template 	= get_option('aqontrol_template');
  Return:    -none-
 -------------------------------------------------------------*/
 function aqontrol_menu_pages() {
-	add_submenu_page('options-general.php', 'AccessQontrol', 'AccessQontrol', 'manage_options', 'accessqontrol', 'aqontrol_options_page');
+	add_submenu_page('tools.php', 'AccessQontrol', 'AccessQontrol', 'manage_options', 'accessqontrol', 'aqontrol_options_page');
 }
 
 /*-------------------------------------------------------------
