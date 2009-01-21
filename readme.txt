@@ -4,7 +4,7 @@ Donate link: http://meandmymac.net/donate/
 Tags: access, lock, block, plugin, admin, control, limit, private, maintenance, plugin
 Requires at least: 2.7
 Tested up to: 2.7
-Stable tag: 1.3.1
+Stable tag: 1.4
 
 Make your blog private? Block everyone or even registered users. Or a selection of them... Need a maintenance mode? Or just want the site to youself.. AccessQontrol can do it all!
 
@@ -23,8 +23,8 @@ You can allow just a selected group on your site. AccessQontrol is the plugin to
 
 == Installation ==
 
-Unzip the file and upload it to your /wp-content/plugins/ folder.<br />
-Activate from the plugins page and administrate via the options panel.
+Unzip the file and upload the folder to your /wp-content/plugins/ folder.<br />
+Activate from the plugins page and administrate via the Tools panel.
 
 [More instructions](http://meandmymac.net/contact-and-support/accessqontrol/#install)
 
