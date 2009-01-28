@@ -330,6 +330,8 @@ function aqontrol_check_config() {
  Return:    -none-
 -------------------------------------------------------------*/
 function aqontrol_options_submit() {
+	$buffer = get_option('acontrol_tracker');
+
 	//options page
 	$option['allow']	 			= $_POST['aqontrol_allow'];
 	$option['except'] 				= trim($_POST['aqontrol_except'], "\t\n ");
@@ -337,6 +339,7 @@ function aqontrol_options_submit() {
 	$template['content'] 			= htmlspecialchars(trim($_POST['aqontrol_content'], "\t\n "), ENT_QUOTES);
 	$tracker['register']			= $_POST['aqontrol_register'];
 	$tracker['anonymous'] 			= $_POST['aqontrol_anonymous'];
+	if($tracker['register'] == 'N' AND $buffer['register'] == 'Y') { aqontrol_send_data('Opt-out'); }
 	update_option('aqontrol_config', $option);
 	update_option('aqontrol_template', $template);
 	update_option('aqontrol_tracker', $tracker);
