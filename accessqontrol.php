@@ -4,29 +4,54 @@ Plugin Name: AccessQontrol
 Plugin URI: http://meandmymac.net/plugins/accessqontrol/
 Description: To make your site private, or not...
 Author: Arnan de Gans
-Version: 1.4
+Version: 2.0
 Author URI: http://meandmymac.net/
 */
 
 #---------------------------------------------------
-# Load plugin and values
+# Load other plugin files and configuration
 #---------------------------------------------------
+include_once(ABSPATH.'wp-content/plugins/accessqontrol/accessqontrol-setup.php');
+include_once(ABSPATH.'wp-content/plugins/accessqontrol/accessqontrol-manage.php');
+include_once(ABSPATH.'wp-content/plugins/accessqontrol/accessqontrol-functions.php');
+
 register_activation_hook(__FILE__, 'aqontrol_activate');
 register_deactivation_hook(__FILE__, 'aqontrol_deactivate');
+
+aqontrol_check_config();
+aqontrol_remove_expired();
 
 add_action('template_redirect', 'aqontrol_header');
 add_action('admin_menu', 'aqontrol_dashboard');
 
+if(isset($_POST['aqontrol_submit'])) {
+	add_action('init', 'aqontrol_insert_input');
+}
+
+if(isset($_POST['aqontrol_action'])) {
+	add_action('init', 'aqontrol_request_action');
+}
+
 if(isset($_POST['aqontrol_submit_options'])) {
 	add_action('init', 'aqontrol_options_submit');
 }
+
+if(isset($_POST['aqontrol_submit_access'])) {
+	add_action('init', 'aqontrol_access_submit');
+}
+
 if(isset($_POST['aqontrol_uninstall'])) {
 	add_action('init', 'aqontrol_uninstall');
 }
 
-aqontrol_check_config();
-$aqontrol_config 	= get_option('aqontrol_config');
+$aqontrol_access 	= get_option('aqontrol_access');
 $aqontrol_template 	= get_option('aqontrol_template');
+
+if(empty($_SERVER["HTTP_X_FORWARDED_FOR"])) {
+	$aqontrol_remote_ip = $_SERVER["REMOTE_ADDR"];
+} else {
+	$aqontrol_remote_ip = $_SERVER["HTTP_X_FORWARDED_FOR"];
+}
 
 /*-------------------------------------------------------------
  Name:      aqontrol_dashboard
@@ -36,7 +61,235 @@ $aqontrol_template 	= get_option('aqontrol_template');
  Return:    -none-
 -------------------------------------------------------------*/
 function aqontrol_dashboard() {
-	add_submenu_page('tools.php', 'AccessQontrol', 'AccessQontrol', 'manage_options', 'accessqontrol', 'aqontrol_options');
+	add_object_page('AccessQontrol', 'AccessQontrol', 'manage_options', 'accessqontrol', 'aqontrol_manage');
+		add_submenu_page('accessqontrol', 'AccessQontrol > Bans', 'Manage Bans', 'manage_options', 'accessqontrol', 'aqontrol_manage');
+		add_submenu_page('accessqontrol', 'AccessQontrol > Bans', 'Add Ban', 'manage_options', 'accessqontrol2', 'aqontrol_edit');
+		add_submenu_page('accessqontrol', 'AccessQontrol > Site access', 'Site access', 'manage_options', 'accessqontrol3', 'aqontrol_site');
+
+	add_options_page('AccessQontrol', 'AccessQontrol', 'manage_options', 'accessqontrol4', 'aqontrol_options');
+}
+
+/* -------------------------------------------------------------
+ Name:      aqontrol_manage
+
+ Purpose:   Admin management page
+ Receive:   -none-
+ Return:    -none-
+------------------------------------------------------------- */
+function aqontrol_manage() {
+	global $wpdb, $aqontrol_remote_ip;
+
+	$message = $_GET['message'];
+	$specific = $_GET['specific'];
+	if(isset($_POST['aqontrol_order'])) { $order = $_POST['aqontrol_order']; } else { $order = 'id ASC'; }
+	?>
+	
+	<div class="wrap">
+  		<h2>Manage Bans</h2>
+ 		
+		<?php if ($message == 'new') { ?>
+			<div id="message" class="updated fade"><p>Ban <strong>created</strong></p></div>
+		<?php } else if ($message == 'deleted') { ?>
+			<div id="message" class="updated fade"><p>Ban(s) <strong>deleted</strong></p></div>
+		<?php } else if ($message == 'no_access') { ?>
+			<div id="message" class="updated fade"><p>Action prohibited</p></div>
+		<?php } ?>
+
+		<form name="groups" id="post" method="post" action="admin.php?page=accessqontrol">
+ 
+		<div class="tablenav">
+			<div class="alignleft actions">
+				<select name='aqontrol_action' id='cat' class='postform' >
+			        <option value="">Bulk Actions</option>
+			        <option value="delete">Delete</option>
+				</select>
+				<input type="submit" id="post-action-submit" value="Go" class="button-secondary" />
+				Sort by <select name='aqontrol_order' id='cat' class='postform' >
+			        <option value="id ASC" <?php if($order == "id ASC") { echo 'selected'; } ?>>Order of creation (ascending)</option>
+			        <option value="id DESC" <?php if($order == "id DESC") { echo 'selected'; } ?>>Order of creation  (descending)</option>
+			        <option value="thetime ASC" <?php if($order == "thetime ASC") { echo 'selected'; } ?>>Date set (ascending)</option>
+			        <option value="thetime DESC" <?php if($order == "thetime DESC") { echo 'selected'; } ?>>Date set (descending)</option>
+			        <option value="redirect ASC" <?php if($order == "redirect ASC") { echo 'selected'; } ?>>Redirect (A-Z)</option>
+			        <option value="redirect DESC" <?php if($order == "redirect DESC") { echo 'selected'; } ?>>Redirect (Z-A)</option>
+				</select>
+				<input type="submit" id="post-query-submit" value="Sort" class="button-secondary" />
+			</div>
+
+			<br class="clear" />
+		</div>
+
+	   	<table class="widefat" style="margin-top: .5em">
+  			<thead>
+  				<tr>
+					<th scope="col" class="check-column">&nbsp;</th>
+			    	<th scope="col" width="25%">Victims</th>
+				    <th scope="col">Reason</th>
+					<th scope="col" width="20%">Date set</th>
+					<th scope="col" width="20%">Expiry date</th>
+				</tr>
+  			</thead>
+  			<tbody>
+		<?php
+		if(aqontrol_mysql_table_exists($wpdb->prefix.'accessqontrol')) {
+			$bans = $wpdb->get_results("SELECT * FROM `".$wpdb->prefix . "accessqontrol` ORDER BY ".$order);
+			if ($bans) {
+				foreach($bans as $ban) {
+					if(is_numeric($ban->address) and is_numeric($ban->range)) { 
+						$ban->address	= long2ip($ban->address); 
+						$ban->range		= long2ip($ban->range);
+					} else {
+						$ban->address	= $ban->address;
+						$ban->range		= $ban->range;
+					}
+					if($ban->address == $ban->range) {
+						$final_address = $ban->address;
+					} else {
+						$final_address = $ban->address." - ".$ban->range;
+					}
+					$class = ('alternate' != $class) ? 'alternate' : ''; ?>
+				  	<tr id='ban-<?php echo $ban->id; ?>' class='<?php echo $class; ?>'>
+						<th scope="row" class="check-column"><input type="checkbox" name="bancheck[]" value="<?php echo $ban->id; ?>" /></th>
+						<td><?php echo $final_address; ?></td>
+						<td><?php echo $ban->reason; ?></td>
+						<td><?php echo date("M d, Y H:i", $ban->thetime); ?></td>
+						<td><?php if($ban->duration > 0) {echo date("M d, Y H:i", $ban->duration); } else { echo 'Never'; } ?></td>
+				  	</tr>
+	 			<?php } ?>
+		 	<?php } else { ?>
+				<tr><td colspan="5">No bans set.</td></tr>
+			<?php }	?>
+		<?php } else { ?>
+			<tr id='no-id'><td scope="row" colspan="6"><span style="font-weight: bold; color: #f00;">There was an error locating the database table for AccessQontrol. Please deactivate and re-activate AccessQontrol from the plugin page!!<br />If this does not solve the issue please seek support at <a href="http://forum.at.meandmymac.net">http://forum.at.meandmymac.net</a></span></td></tr>
+		<?php }	?>
+ 			</tbody>
+		</table>
+		</form>
+	</div>
+<?php
+}
+
+/* -------------------------------------------------------------
+ Name:      aqontrol_edit
+
+ Purpose:   Add a ban
+ Receive:   -none-
+ Return:    -none-
+------------------------------------------------------------- */
+function aqontrol_edit() {
+	global $wpdb, $aqontrol_config, $aqontrol_remote_ip;
+
+	$message = $_GET['message'];
+	$specific = $_GET['specific'];
+	?>
+	
+	<div class="wrap">
+		<h2>Ban Someone</h2>
+		
+		<?php if ($message == 'error') { ?>
+			<div id="message" class="updated fade"><p>An error occured: <strong><?php echo $specific; ?></strong></p></div>
+		<?php } ?>
+
+	  	<form method="post" action="admin.php?page=accessqontrol2">
+	    	<table class="form-table">
+		      	<tr valign="top">
+			        <th scope="row">You:</th>
+			        <td>IP: <?php echo $aqontrol_remote_ip; ?><br />Hostname: <?php echo gethostbyaddr($aqontrol_remote_ip); ?></td>
+		      	</tr>
+		      	<tr valign="top">
+			        <th scope="row">Select method:</th>
+			        <td><input name="type" type="radio" value="single" checked="checked" /> Single IP or hostname<br /><input name="type" type="radio" value="range" /> IP Range</td>
+		      	</tr>
+		      	<tr valign="top">
+			        <th scope="row">Address/Range:</th>
+			        <td><input name="address" type="text" size="20" tabindex="1"/> / <input name="range" type="text" size="20" tabindex="2" /> <em>(IP address or hostname)</em></td>
+		      	</tr>
+		      	<tr valign="top">
+			        <th scope="row">Possibilities:</th>
+			        <td>- Single IP/Hostname: fill in either a hostname or IP address in the first field.<br />
+			        - IP Range: Put the starting IP address in the left and the ending IP address in the right field.
+		      	</tr>
+		      	<tr valign="top">
+			        <th scope="row">Reason:</th>
+			        <td><input name="reason" type="text" size="50" maxlength="255" tabindex="3" /> <em>(optional, shown to victim)</em></td>
+		      	</tr>
+		      	<tr valign="top">
+			        <th scope="row">Redirect to (Full URL):</th>
+			        <td><input name="redirect" type="text" size="50" maxlength="255" tabindex="4" /> <em>(optional)</em></td>
+		      	</tr valign="top">
+			        <th  scope="row">How long:</th>
+			        <td><select name="timetype" tabindex="5">
+						<option value="permanent">permanent</option>
+						<option value="day">day(s)</option>
+						<option value="week">week(s)</option>
+					</select> <input name="timeset" type="text" size="6" tabindex="6" /><br /><em>Leave field empty when using permanent. Fill in a number higher than 0 when using another option!</em></td>
+		      	</tr>
+		      	<tr valign="top">
+			        <th scope="row">Hints and tips:</th>
+			        <td>
+						- Banning hosts in the 10.x.x.x / 169.254.x.x / 172.16.x.x or 192.168.x.x range probably won't work.<br />
+						- Banning by internet hostname might work unexpectedly and resulting in banning multiple people from the same ISP!<br />
+						- Wildcards on IP addresses are allowed. Block 84.234. to block the whole 84.234.x.x range!<br />
+						- An IP address <strong>always</strong> contains 4 parts with numbers no higher than 254 separated by a dot!<br />
+						- If a ban does not seem to work try to find out if the person you're trying to ban doesn't use <a href="http://en.wikipedia.org/wiki/DHCP" target="_blank" title="Wikipedia - DHCP, new window">DHCP</a>.<br />
+						- A temporary ban is automatically removed when it expires.<br />
+						- For more questions please seek help at my <a href="http://forum.at.meandmymac.net/" target="_blank" title="Support, new window">support pages</a>.<br />
+			        </td>
+		      	</tr>
+	    	</table>
+	    	<p class="submit">
+	      		<input type="submit" name="aqontrol_submit" class="button-primary" value="Proceed" tabindex="7" />
+	      		<a href="admin.php?page=accessqontrol" class="button">Cancel</a>
+	    	</p>
+	  	</form>
+	</div>
+<?php
+}
+
+/* -------------------------------------------------------------
+ Name:      aqontrol_site
+
+ Purpose:   Control access to your site
+ Receive:   -none-
+ Return:    -none-
+------------------------------------------------------------- */
+function aqontrol_site() {
+	$aqontrol_access = get_option('aqontrol_access');
+
+	$action = $_POST['action'];
+
+	if ($action == 'update') { ?>
+		<div id="message" class="updated fade"><p>Settings <strong>saved</strong></p></div>
+	<?php } ?>
+
+	<div class="wrap">
+  	
+  		<h2>Website access</h2>
+	  	<form method="post" action="admin.php?page=accessqontrol3">
+	    	<input type="hidden" name="aqontrol_submit_access" value="true" />
+	    	<input type="hidden" name="action" value="update" />
+  	
+	    	<table class="form-table">
+			<tr valign="top">
+				<th scope="row">Allow...</th>
+		        <td><select name="aqontrol_allow">';
+			        <option value="nobanned" <?php if($aqontrol_access['allow'] == "nobanned") { echo 'selected'; } ?>>Everyone except for banned people (default)</option>
+			        <option value="everyone" <?php if($aqontrol_access['allow'] == "everyone") { echo 'selected'; } ?>>Everyone, even banned people</option>
+			        <option value="registered" <?php if($aqontrol_access['allow'] == "registered") { echo 'selected'; } ?>>Logged in users only</option>
+			        <option value="nobody" <?php if($aqontrol_access['allow'] == "nobody") { echo 'selected'; } ?>>Closed for everyone but 'admin'</option>
+				</select> <em>The dashboard stays available at all times!</em></td>
+			</tr>
+			<tr valign="top">
+				<th scope="row">Never block these users</th>
+				<td><textarea name="aqontrol_except" type="text" cols="50" rows="4"><?php echo $aqontrol_access['except'];?></textarea><br /><em>Type login names, comma seperated (user1,user2,etc.). 'admin' cannot be blocked and does not need to be excluded!</em></td>
+			</tr>
+			</table>
+
+			<p class="submit">
+				<input type="submit" name="Submit" class="button-primary" value="Save Access Settings" />
+			</p>
+		</form>
+	</div>
+<?php
 }
 
 /*-------------------------------------------------------------
@@ -47,10 +300,9 @@ function aqontrol_dashboard() {
  Return:    -none-
 -------------------------------------------------------------*/
 function aqontrol_options() {
-	$aqontrol_config = get_option('aqontrol_config');
 	$aqontrol_template = get_option('aqontrol_template');
-	$aqontrol_tracker = get_option('aqontrol_tracker');
-	$action = $_POST['aqontrol_action'];
+
+	$action = $_POST['action'];
 
 	if ($action == 'update') { ?>
 		<div id="message" class="updated fade"><p>Settings <strong>saved</strong></p></div>
@@ -58,75 +310,26 @@ function aqontrol_options() {
 
 	<div class="wrap">
 	  	<h2>AccessQontrol options</h2>
-	  	<form method="post" action="tools.php?page=accessqontrol">
+	  	<form method="post" action="options-general.php?page=accessqontrol4">
 	    	<input type="hidden" name="aqontrol_submit_options" value="true" />
-	    	<input type="hidden" name="aqontrol_action" value="update" />
-			<?php wp_nonce_field('update-options') ?>
-
-	    	<h3>Main config</h3>
-	    	
-	    	<table class="form-table">
-			<tr valign="top">
-				<th scope="row">Allow...</th>
-		        <td><select name="aqontrol_allow">';
-			        <option value="everyone" <?php if($aqontrol_config['allow'] == "everyone") { echo 'selected'; } ?>>everyone (default, your site is open)</option>
-			        <option value="registered" <?php if($aqontrol_config['allow'] == "registered") { echo 'selected'; } ?>>registered people only (members only)</option>
-			        <option value="nobody" <?php if($aqontrol_config['allow'] == "nobody") { echo 'selected'; } ?>>nobody (just you are allowed on, maintanance mode)</option>
-				</select> <em>The dashboard stays available at all times!</em></td>
-			</tr>
-			<tr valign="top">
-				<th scope="row">Never block these users</th>
-				<td><textarea name="aqontrol_except" type="text" cols="50" rows="4"><?php echo $aqontrol_config['except'];?></textarea><br /><em>Type login names, comma seperated (user1,user2,etc.). 'admin' cannot be blocked and does not need to be excluded!</em></td>
-			</tr>
-			</table>
-
+	    	<input type="hidden" name="action" value="update" />
+			
 	    	<h3>Template</h3>
 	    	
 	    	<table class="form-table">
 			<tr valign="top">
 				<th scope="row">Template Title</th>
-				<td><input name="aqontrol_title" type="text" value="<?php echo stripslashes($aqontrol_template['title']);?>" size="80" /> <em>HTML allowed.</em></td>
+				<td><input name="aqontrol_title" type="text" value="<?php echo stripslashes($aqontrol_template['title']);?>" size="60" /> <em>HTML allowed.</em></td>
 			</tr>
 			<tr valign="top">
 				<th scope="row">Template Content</th>
 				<td><textarea name="aqontrol_content" cols="80" rows="5"><?php echo stripslashes($aqontrol_template['content']); ?></textarea><br />
-				<em>Available options: %login_link%. HTML allowed.</em></td>
+				<em>Since this is a somewhat preformatted page less HTML is better. Stick to text as much as you can. Only use HTML for small markup things.<br />Available options: %login_link%. HTML allowed.<br />Options for banned people (Skipped for other settings): %until% %reason%.</em></td>
 			</tr>
 			</table>
 
-	    	<h3>Registration</h3>	    	
-	
-	    	<table class="form-table">
-			<tr>
-				<th scope="row" valign="top">Why</th>
-				<td>For fun and as an experiment i would like to gather some information and develop a simple stats system for it. I would like to ask you to participate in this experiment. All it takes for you is to not opt-out. More information is found <a href="http://meandmymac.net/plugins/data-project/" title="http://meandmymac.net/plugins/data-project/ - New window" target="_blank">here</a>. Any questions can be directed to the <a href="http://forum.at.meandmymac.net/" title="http://forum.at.meandmymac.net/ - New window" target="_blank">forum</a>.</td>
-				
-			</tr>
-			<tr>
-				<th scope="row" valign="top">Participate</th>
-				<td><input type="checkbox" name="aqontrol_register" <?php if($aqontrol_tracker['register'] == 'Y') { ?>checked="checked" <?php } ?> /> Allow Meandmymac.net to collect some data about the plugin usage and your blog.<br /><em>This includes your blog name, blog address, email address and a selection of triggered events as well as the name and version of this plugin.</em></td>
-			</tr>
-			<tr>
-				<th scope="row" valign="top">Anonymously</th>
-				<td><input type="checkbox" name="aqontrol_anonymous" <?php if($aqontrol_tracker['anonymous'] == 'Y') { ?>checked="checked" <?php } ?> /> Your blog name, blog address and email will not be send.</td>
-			</tr>
-			<tr>
-				<th scope="row" valign="top">Agree</th>
-				<td><strong>Upon activating the plugin you agree to the following:</strong>
-
-				<br />- All gathered information, but not your email address, may be published or used in a statistical overview for reference purposes.
-				<br />- You're free to opt-out or to make any to be gathered data anonymous at any time.
-				<br />- All acquired information remains in my database and will not be sold, made public or otherwise spread to third parties.
-				<br />- If you opt-out or go anonymous, all previously saved data will remain intact.
-				<br />- Requests to remove your data or make everything you sent anonymous will not be granted unless there are pressing issues.
-				<br />- Anonymously gathered data cannot be removed since it's anonymous.
-				</td>
-			</tr>
-	    	</table>
-
 			<p class="submit">
-				<input type="hidden" name="action" value="update" />
-				<input type="submit" name="Submit" class="button-primary" value="<?php _e('Save Changes') ?>" />
+				<input type="submit" name="Submit" class="button-primary" value="Save Settings" />
 			</p>
 		</form>
 	  	
@@ -150,225 +353,4 @@ function aqontrol_options() {
 	</div>
 <?php
 }	
-
-/* -------------------------------------------------------------
- Name:      aqontrol_header
-
- Purpose:   Checks if the website is private or not and if users 
- 			are allowed on.
- Receive:   -none-
- Return:	-none-
-------------------------------------------------------------- */
-function aqontrol_header() {
-	global $aqontrol_config, $user_ID, $userdata;
-
-	get_currentuserinfo();
-
-	if(strlen($aqontrol_config['except']) != 0) {
-		$buffer1 = explode(',', $aqontrol_config['except']);
-		$buffer2 = array(0 => 'admin');
-		$buffer = array_merge($buffer1, $buffer2);
-	} else { 
-		$buffer = array(0 => 'admin');
-	}
-
-	if((($aqontrol_config['allow'] == 'registered' AND $user_ID == '') OR $aqontrol_config['allow'] == 'nobody') AND !in_array($userdata->user_login, $buffer)) {
-		aqontrol_login_template();
-		exit;
-	} 
-}
-
-/* -------------------------------------------------------------
- Name:      aqontrol_login_template
-
- Purpose:   Shows to people when site is restricted.
- Receive:   -None-
- Return:	-None-
-------------------------------------------------------------- */
-function aqontrol_login_template() {
-	global $aqontrol_template;
-	
-	get_header();
-	
-	$template_title 	= stripslashes(html_entity_decode($aqontrol_template['title'], ENT_QUOTES));
-	$template_content 	= stripslashes(html_entity_decode($aqontrol_template['content'], ENT_QUOTES));
-	$template_content 	= str_replace('%login_link%', '<a href="'.get_option('siteurl').'/wp-login.php">Login form</a>', $template_content);
-?>
-
-	<div id="content" class="widecolumn">
-		<?php print $template_title; ?>
-		<?php print $template_content; ?>
-	</div>
-
-<?php	
-	get_footer();
-}
-
-/*-------------------------------------------------------------
- Name:      aqontrol_send_data
-
- Purpose:   Register events at meandmymac.net's database
- Receive:   $action
- Return:    -none-
--------------------------------------------------------------*/
-function aqontrol_send_data($action) {
-	$aqontrol_tracker = get_option('aqontrol_tracker');
-	
-	// Prepare data
-	$date			= date('U');
-	$plugin			= 'AccessQontrol';
-	$version		= '1.4';
-	//$action -> pulled from function args
-	
-	// User choose anonymous?
-	if($aqontrol_tracker['anonymous'] == 'Y') {
-		$ident 		= 'Anonymous';
-		$blogname 	= 'Anonymous';
-		$blogurl	= 'Anonymous';
-		$email		= 'Anonymous';
-	} else {
-		$ident 		= md5(get_option('siteurl'));
-		$blogname	= get_option('blogname');
-		$blogurl	= get_option('siteurl');
-		$email		= get_option('admin_email');			
-	}
-	
-	// Build array of data
-	$post_data = array (
-		'headers'	=> null,
-		'body'		=> array(
-			'ident'		=> $ident,
-			'blogname' 	=> base64_encode($blogname),
-			'blogurl'	=> base64_encode($blogurl),
-			'email'		=> base64_encode($email),
-			'date'		=> $date,
-			'plugin'	=> $plugin,
-			'version'	=> $version,
-			'action'	=> $action,
-		),
-	);
-
-	// Destination
-	$url = 'http://stats.meandmymac.net/receiver.php';
-
-	wp_remote_post($url, $post_data);
-}
-
-/*-------------------------------------------------------------
- Name:      aqontrol_activate
-
- Purpose:   Activation script
- Receive:   -none-
- Return:    -none-
--------------------------------------------------------------*/
-function aqontrol_activate() {
-	aqontrol_send_data('Activate');
-}
-
-/*-------------------------------------------------------------
- Name:      aqontrol_deactivate
-
- Purpose:   Deactivation script
- Receive:   -none-
- Return:    -none-
--------------------------------------------------------------*/
-function aqontrol_deactivate() {
-	aqontrol_send_data('Deactivate');
-}
-
-/*-------------------------------------------------------------
- Name:      aqontrol_check_config
-
- Purpose:   Create or update the options
- Receive:   -none-
- Return:    -none-
--------------------------------------------------------------*/
-function aqontrol_check_config() {
-	// Configuration
-	if ( !$option = get_option('aqontrol_config') ) {
-		// Default Options
-		$option['allow'] 					= 'everyone';
-		$option['except']					= '';
-		update_option('aqontrol_config', $option);
-	}
-
-	// If value not assigned insert default (upgrades)
-	// "except" may be empty!!
-	if (strlen($option['allow']) < 1) {
-		$option['allow'] 					= 'everyone';
-		$option['except']					= ''; // may be left empty!!
-		update_option('aqontrol_config', $option);
-	}
-	
-	// Template
-	if ( !$template = get_option('aqontrol_template') ) {
-		// Default Options
-		$template['title'] 					= '<h2>You need to log in to enter this website</h2>';
-		$template['content'] 				= '<div class="entry">If you wish to log in you need an account. Please contact the system administrator if you do not have an account.</div>';
-		update_option('aqontrol_template', $template);
-	}
-
-	// If value not assigned insert default (upgrades)
-	if ( strlen($template['title']) < 1 or strlen($template['content'] ) < 1) {
-		$template['title'] 					= '<h2>You need to log in to enter this website</h2>';
-		$template['content'] 				= '<div class="entry">If you wish to log in you need an account. Please contact the system administrator if you do not have an account.</div>';
-		update_option('aqontrol_template', $template);
-	}
-	
-	if ( !$tracker = get_option('aqontrol_tracker') ) {
-		$tracker['register']				= 'Y';
-		$tracker['anonymous']				= 'N';
-		update_option('aqontrol_tracker', $tracker);
-	}
-}
-
-/*-------------------------------------------------------------
- Name:      aqontrol_options_submit
-
- Purpose:   Save options
- Receive:   $_POST
- Return:    -none-
--------------------------------------------------------------*/
-function aqontrol_options_submit() {
-	$buffer = get_option('acontrol_tracker');
-
-	//options page
-	$option['allow']	 			= $_POST['aqontrol_allow'];
-	$option['except'] 				= trim($_POST['aqontrol_except'], "\t\n ");
-	$template['title'] 				= htmlspecialchars(trim($_POST['aqontrol_title'], "\t\n "), ENT_QUOTES);
-	$template['content'] 			= htmlspecialchars(trim($_POST['aqontrol_content'], "\t\n "), ENT_QUOTES);
-	$tracker['register']			= $_POST['aqontrol_register'];
-	$tracker['anonymous'] 			= $_POST['aqontrol_anonymous'];
-	if($tracker['register'] == 'N' AND $buffer['register'] == 'Y') { aqontrol_send_data('Opt-out'); }
-	update_option('aqontrol_config', $option);
-	update_option('aqontrol_template', $template);
-	update_option('aqontrol_tracker', $tracker);
-}
-
-/*-------------------------------------------------------------
- Name:      aqontrol_uninstall
-
- Purpose:   Delete the entire database table and remove the 
- 			options on uninstall.
- Receive:   -none-
- Return:	-none-
--------------------------------------------------------------*/
-function aqontrol_uninstall() {
-	
-	aqontrol_send_data('Uninstall');
-	
-	// Delete Option
-	delete_option('aqontrol_config');
-	delete_option('aqontrol_template');
-	delete_option('aqontrol_tracker');
-
-	// Deactivate Plugin
-	$current = get_settings('active_plugins');
-    array_splice($current, array_search( "accessqontrol.php", $current), 1);
-	update_option('active_plugins', $current);
-	do_action('deactivate_' . trim( $_GET['plugin'] ));
-
-	die();
-}
-
 ?>
