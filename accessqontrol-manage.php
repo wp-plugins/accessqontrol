@@ -7,8 +7,9 @@
  Return:	-None-
 ------------------------------------------------------------- */
 function aqontrol_insert_input() {
-	global $wpdb, $aqontrol_remote_ip;
+	global $wpdb;
 
+	$aqontrol_remote_ip = aqontrol_remote_ip();
 	$thetime	= current_time('timestamp');
 	$type	 	= htmlentities(trim($_POST['type'], "\t\n "), ENT_QUOTES);
 	$address 	= htmlentities(trim($_POST['address'], "\t\n "), ENT_QUOTES);
@@ -31,8 +32,7 @@ function aqontrol_insert_input() {
 			$duration = 0;
 		}
 
-//		$reserved = array ("127.0.0.1", "0.0.0.0", "localhost", "::1", $aqontrol_remote_ip);
-		$reserved = array ();
+		$reserved = array ("127.0.0.1", "0.0.0.0", "localhost", "::1", $aqontrol_remote_ip);
 
 		if (!in_array(strtolower($address), $reserved) AND !in_array(strtolower($range), $reserved)) {		
 			if ($type == "range") {
@@ -76,7 +76,7 @@ function aqontrol_remove_expired() {
 
 	$thetime = current_time('timestamp');
 	
-	$old_bans = $wpdb->get_results("DELETE FROM `".$wpdb->prefix."accessqontrol` WHERE `timespan` >= '$thetime'");
+	$old_bans = $wpdb->get_results("DELETE FROM `".$wpdb->prefix."accessqontrol` WHERE `duration` >= '$thetime'");
 }
 
 /*-------------------------------------------------------------

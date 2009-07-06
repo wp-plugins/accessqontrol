@@ -4,7 +4,7 @@ Plugin Name: AccessQontrol
 Plugin URI: http://meandmymac.net/plugins/accessqontrol/
 Description: To make your site private, or not...
 Author: Arnan de Gans
-Version: 2.0
+Version: 2.1
 Author URI: http://meandmymac.net/
 */
 
@@ -23,6 +23,7 @@ aqontrol_remove_expired();
 
 add_action('template_redirect', 'aqontrol_header');
 add_action('admin_menu', 'aqontrol_dashboard');
+add_action('wp_dashboard_setup', 'aqontrol_widget_dashboard_init');
 
 if(isset($_POST['aqontrol_submit'])) {
 	add_action('init', 'aqontrol_insert_input');
@@ -46,12 +47,6 @@ if(isset($_POST['aqontrol_uninstall'])) {
 
 $aqontrol_access 	= get_option('aqontrol_access');
 $aqontrol_template 	= get_option('aqontrol_template');
-
-if(empty($_SERVER["HTTP_X_FORWARDED_FOR"])) {
-	$aqontrol_remote_ip = $_SERVER["REMOTE_ADDR"];
-} else {
-	$aqontrol_remote_ip = $_SERVER["HTTP_X_FORWARDED_FOR"];
-}
 
 /*-------------------------------------------------------------
  Name:      aqontrol_dashboard
@@ -77,7 +72,7 @@ function aqontrol_dashboard() {
  Return:    -none-
 ------------------------------------------------------------- */
 function aqontrol_manage() {
-	global $wpdb, $aqontrol_remote_ip;
+	global $wpdb;
 
 	$message = $_GET['message'];
 	$specific = $_GET['specific'];
@@ -176,8 +171,9 @@ function aqontrol_manage() {
  Return:    -none-
 ------------------------------------------------------------- */
 function aqontrol_edit() {
-	global $wpdb, $aqontrol_config, $aqontrol_remote_ip;
+	global $wpdb, $aqontrol_config;
 
+	$aqontrol_remote_ip = aqontrol_remote_ip();
 	$message = $_GET['message'];
 	$specific = $_GET['specific'];
 	?>

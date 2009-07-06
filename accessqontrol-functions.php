@@ -39,8 +39,9 @@ function aqontrol_header() {
  Return:	Boolean
 ------------------------------------------------------------- */
 function aqontrol_check_bans() {
-	global $wpdb, $aqontrol_remote_ip;
+	global $wpdb;
 	
+	$aqontrol_remote_ip = aqontrol_remote_ip();
 	$remote_ip_long = sprintf("%u", ip2long($aqontrol_remote_ip));
 	$remote_addr 	= gethostbyaddr($aqontrol_remote_ip);
 
@@ -65,6 +66,25 @@ function aqontrol_check_bans() {
 			return false;
 		}
 	}		
+}
+
+/* -------------------------------------------------------------
+ Name:      aqontrol_remote_ip
+
+ Purpose:   Determine ones remote IP even if it's via a proxy
+ Receive:   -None-
+ Return:	-None-
+------------------------------------------------------------- */
+function aqontrol_remote_ip() {
+		
+	if(empty($_SERVER["HTTP_X_FORWARDED_FOR"])) {
+		$remote_ip = $_SERVER["REMOTE_ADDR"];
+	} else {
+		$buffer = split(",", $_SERVER["HTTP_X_FORWARDED_FOR"]);
+		$buffer = array_reverse($buffer);
+		$remote_ip = $buffer[0];
+	}
+	return $remote_ip;
 }
 
 /* -------------------------------------------------------------
@@ -149,6 +169,99 @@ function aqontrol_return($action, $arg = null) {
 		case "error" :
 			wp_redirect('admin.php?page=accessqontrol2&message=error&specific='.$arg[0]);
 		break;
+	}
+}
+
+/*-------------------------------------------------------------
+ Name:      aqontrol_widget_dashboard_init
+
+ Purpose:   Add a WordPress dashboard widget
+ Receive:   -none-
+ Return:    -none-
+-------------------------------------------------------------*/
+function aqontrol_widget_dashboard_init() {
+	wp_add_dashboard_widget( 'meandmymac_rss_widget', 'Meandmymac.net RSS Feed', 'meandmymac_rss_widget' );
+}
+
+/*-------------------------------------------------------------
+ Name:      meandmymac_rss_widget
+
+ Purpose:   Shows the Meandmymac RSS feed on the dashboard
+ Receive:   -none-
+ Return:    -none-
+-------------------------------------------------------------*/
+if(!function_exists('meandmymac_rss_widget')) {
+	function meandmymac_rss_widget() {
+		?>
+			<style type="text/css" media="screen">
+			#meandmymac_rss_widget .text-wrap {
+				padding-top: 5px;
+				margin: 0.5em;
+				display: block;
+			}
+			#meandmymac_rss_widget .text-wrap .rsserror {
+				color: #f00;
+				border: none;
+			}
+			</style>
+		<?php meandmymac_rss('http://meandmymac.net/feed/');
+	}
+}
+
+/*-------------------------------------------------------------
+ Name:      meandmymac_rss
+
+ Purpose:   A very simple RSS parser for Meandmymac.net
+ Receive:   $rss, $count
+ Return:    -none-
+-------------------------------------------------------------*/
+if(!function_exists('meandmymac_rss')) {
+	function meandmymac_rss($rss, $count = 10) {
+		if ( is_string( $rss ) ) {
+			require_once(ABSPATH . WPINC . '/rss.php');
+			if ( !$rss = fetch_rss($rss) ) {
+				echo '<div class="text-wrap"><span class="rsserror">The feed could not be fetched, try again later!</span></div>';
+				return;
+			}
+		}
+
+		if ( is_array( $rss->items ) && !empty( $rss->items ) ) {
+			$rss->items = array_slice($rss->items, 0, $count);
+			foreach ( (array) $rss->items as $item ) {
+				while ( strstr($item['link'], 'http') != $item['link'] ) {
+					$item['link'] = substr($item['link'], 1);
+				}
+
+				$link = clean_url(strip_tags($item['link']));
+				$desc = attribute_escape(strip_tags( $item['description']));
+				$title = attribute_escape(strip_tags($item['title']));
+				if ( empty($title) ) {
+					$title = __('Untitled');
+				}
+				
+				if ( empty($link) ) {
+					$link = "#";
+				}
+
+				if (isset($item['pubdate'])) {
+					$date = $item['pubdate'];
+				} elseif (isset($item['published'])) {
+					$date = $item['published'];
+				}
+
+				if ($date) {
+					if ($date_stamp = strtotime($date)) {
+						$date = date_i18n( get_option('date_format'), $date_stamp);
+					} else {
+						$date = '';
+					}
+				}
+				echo '<div class="text-wrap"><a href="'.$link.'" target="_blank">'.$title.'</a> on '.$date.'</div>';
+			}
+		} else {
+			echo '<div class="text-wrap"><span class="rsserror">The feed appears to be invalid or corrupt!</span></div>';
+		}
+		return;
 	}
 }
 ?>
