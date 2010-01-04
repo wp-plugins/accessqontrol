@@ -3,7 +3,7 @@ Contributors: Arnan de Gans
 Donate link: http://meandmymac.net/donate/
 Tags: access, lock, block, plugin, admin, control, limit, private, maintenance, plugin
 Requires at least: 2.7
-Tested up to: 2.8
+Tested up to: 2.9
 Stable tag: 2.1
 
 Make your blog private? Block everyone, even registered users. Or a selection of them... Need a maintenance mode? Or just want the site to youself.. IP bans? AccessQontrol can do it all!
